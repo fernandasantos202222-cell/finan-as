@@ -1,13 +1,9 @@
 import streamlit as st
 import pandas as pd
-import sqlite3
 import plotly.express as px
-from datetime import datetime
+from datetime import date
 from io import BytesIO
-
-# ==========================
-# CONFIG
-# ==========================
+import os
 
 st.set_page_config(
     page_title="Dashboard Financeiro",
@@ -15,87 +11,86 @@ st.set_page_config(
     layout="wide"
 )
 
-# ==========================
-# BANCO
-# ==========================
+ARQUIVO = "movimentacoes.csv"
 
-conn = sqlite3.connect(
-    "financeiro.db",
-    check_same_thread=False
-)
+# =====================
+# CRIA CSV SE NÃO EXISTIR
+# =====================
 
-cursor = conn.cursor()
+if not os.path.exists(ARQUIVO):
 
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS movimentacoes (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    data TEXT,
-    descricao TEXT,
-    valor REAL,
-    tipo TEXT,
-    categoria TEXT
-)
-""")
-
-conn.commit()
-
-# ==========================
-# FUNÇÕES
-# ==========================
-
-def carregar_dados():
-    return pd.read_sql(
-        "SELECT * FROM movimentacoes",
-        conn
+    df_vazio = pd.DataFrame(
+        columns=[
+            "ID",
+            "Data",
+            "Descricao",
+            "Valor",
+            "Tipo",
+            "Categoria"
+        ]
     )
 
-def adicionar_movimento(
-    data,
-    descricao,
-    valor,
-    tipo,
-    categoria
-):
-    cursor.execute("""
-        INSERT INTO movimentacoes
-        (data,descricao,valor,tipo,categoria)
-        VALUES (?,?,?,?,?)
-    """, (
-        data,
-        descricao,
-        valor,
-        tipo,
-        categoria
-    ))
-    conn.commit()
+    df_vazio.to_csv(
+        ARQUIVO,
+        index=False
+    )
 
-def atualizar_movimento(
-    id,
-    data,
-    descricao,
-    valor,
-    tipo,
-    categoria
-):
-    cursor.execute("""
-        UPDATE movimentacoes
-        SET
-        data=?,
-        descricao=?,
-        valor=?,
-        tipo=?,
-        categoria=?
-        WHERE id=?
-    """,(
-        data,
-        descricao,
-        valor,
-        tipo,
-        categoria,
-        id
-    ))
+# =====================
+# FUNÇÕES
+# =====================
 
-    conn.commit()
+def carregar():
 
-def excluir_movimento(id):
-    cursor
+    df = pd.read_csv(ARQUIVO)
+
+    if not df.empty:
+        df["Data"] = pd.to_datetime(df["Data"])
+
+    return df
+
+
+def salvar(df):
+
+    df.to_csv(
+        ARQUIVO,
+        index=False
+    )
+
+# =====================
+# MENU
+# =====================
+
+menu = st.sidebar.radio(
+    "Menu",
+    [
+        "Dashboard",
+        "Cadastrar",
+        "Editar / Excluir"
+    ]
+)
+
+# =====================
+# CADASTRO
+# =====================
+
+if menu == "Cadastrar":
+
+    st.title("➕ Nova Movimentação")
+
+    with st.form("cadastro"):
+
+        data = st.date_input(
+            "Data",
+            value=date.today()
+        )
+
+        descricao = st.text_input(
+            "Descrição"
+        )
+
+        valor = st.number_input(
+            "Valor",
+            min_value=0.0
+        )
+
+        tipo =
