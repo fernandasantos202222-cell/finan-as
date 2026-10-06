@@ -1,0 +1,6 @@
+streamlit
+libsql-experimental
+pandas
+openpyxl
+fpdf2
+plotly
