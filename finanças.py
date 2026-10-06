@@ -98,4 +98,4 @@ def atualizar_movimento(
     conn.commit()
 
 def excluir_movimento(id):
-    cursor.
+    cursor
