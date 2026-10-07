@@ -2,27 +2,22 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 from io import BytesIO
-from datetime import date
 import os
-
-# ============================
-# CONFIGURAÇÃO
-# ============================
+from datetime import date
 
 st.set_page_config(
-    page_title="Controle Financeiro",
+    page_title="Dashboard Financeiro",
     page_icon="💰",
     layout="wide"
 )
 
 ARQUIVO = "movimentacoes.csv"
 
-# ============================
-# CRIA CSV
-# ============================
+# ------------------------
+# CRIAR CSV
+# ------------------------
 
 if not os.path.exists(ARQUIVO):
-
     pd.DataFrame(
         columns=[
             "ID",
@@ -34,9 +29,10 @@ if not os.path.exists(ARQUIVO):
         ]
     ).to_csv(ARQUIVO, index=False)
 
-# ============================
-# FUNÇÕES
-# ============================
+
+# ------------------------
+# FUNCOES
+# ------------------------
 
 def carregar_dados():
 
@@ -47,29 +43,22 @@ def carregar_dados():
         if df.empty:
             return df
 
-        # Corrige datas inválidas
         df["Data"] = pd.to_datetime(
             df["Data"],
             errors="coerce"
         )
 
-        # Remove registros ruins
         df = df.dropna(subset=["Data"])
 
-        # Corrige número
         df["Valor"] = pd.to_numeric(
             df["Valor"],
             errors="coerce"
         ).fillna(0)
 
-        df["ID"] = pd.to_numeric(
-            df["ID"],
-            errors="coerce"
-        ).fillna(0).astype(int)
-
         return df
 
-    except:
+    except Exception:
+
         return pd.DataFrame(
             columns=[
                 "ID",
@@ -85,12 +74,13 @@ def carregar_dados():
 def salvar_dados(df):
     df.to_csv(ARQUIVO, index=False)
 
-# ============================
-# MENU
-# ============================
 
-menu = st.sidebar.radio(
-    "Navegação",
+# ------------------------
+# MENU
+# ------------------------
+
+pagina = st.sidebar.radio(
+    "Menu",
     [
         "Dashboard",
         "Cadastrar",
@@ -98,13 +88,13 @@ menu = st.sidebar.radio(
     ]
 )
 
-# ============================
+# ------------------------
 # CADASTRO
-# ============================
+# ------------------------
 
-if menu == "Cadastrar":
+if pagina == "Cadastrar":
 
-    st.title("➕ Nova Movimentação")
+    st.title("➕ Cadastro")
 
     with st.form("cadastro"):
 
@@ -125,10 +115,7 @@ if menu == "Cadastrar":
 
         tipo = st.selectbox(
             "Tipo",
-            [
-                "Entrada",
-                "Saída"
-            ]
+            ["Entrada", "Saída"]
         )
 
         categoria = st.selectbox(
@@ -141,32 +128,36 @@ if menu == "Cadastrar":
                 "Saúde",
                 "Lazer",
                 "Educação",
-                "Investimento",
+                "Investimentos",
                 "Outros"
             ]
         )
 
-        btn = st.form_submit_button(
+        enviar = st.form_submit_button(
             "Salvar"
         )
 
-        if btn:
+        if enviar:
 
             df = carregar_dados()
 
             novo_id = 1
 
             if not df.empty:
-                novo_id = int(df["ID"].max()) + 1
+                novo_id = int(
+                    df["ID"].max()
+                ) + 1
 
-            novo = pd.DataFrame([{
-                "ID": novo_id,
-                "Data": pd.Timestamp(data).strftime("%Y-%m-%d"),
-                "Descricao": descricao,
-                "Valor": valor,
-                "Tipo": tipo,
-                "Categoria": categoria
-            }])
+            novo = pd.DataFrame([
+                {
+                    "ID": novo_id,
+                    "Data": data.strftime("%Y-%m-%d"),
+                    "Descricao": descricao,
+                    "Valor": valor,
+                    "Tipo": tipo,
+                    "Categoria": categoria
+                }
+            ])
 
             df = pd.concat(
                 [df, novo],
@@ -176,62 +167,58 @@ if menu == "Cadastrar":
             salvar_dados(df)
 
             st.success(
-                "Cadastro realizado!"
+                "Registro salvo!"
             )
 
-# ============================
-# EDITAR / EXCLUIR
-# ============================
+# ------------------------
+# EDITAR
+# ------------------------
 
-elif menu == "Editar / Excluir":
+elif pagina == "Editar / Excluir":
 
-    st.title("✏️ Editar ou Excluir")
+    st.title("✏️ Editar / Excluir")
 
     df = carregar_dados()
 
     if df.empty:
-
-        st.warning(
-            "Nenhum lançamento encontrado."
-        )
-
+        st.warning("Nenhum registro.")
         st.stop()
 
     id_escolhido = st.selectbox(
-        "Selecione o ID",
-        df["ID"].tolist()
+        "Selecione",
+        df["ID"]
     )
 
-    registro = df[
+    reg = df[
         df["ID"] == id_escolhido
     ].iloc[0]
 
-    with st.form("edicao"):
+    with st.form("editar"):
 
         data = st.date_input(
             "Data",
-            registro["Data"].date()
+            reg["Data"].date()
         )
 
         descricao = st.text_input(
             "Descrição",
-            registro["Descricao"]
+            reg["Descricao"]
         )
 
         valor = st.number_input(
             "Valor",
-            value=float(registro["Valor"])
+            value=float(reg["Valor"])
         )
 
         tipo = st.selectbox(
             "Tipo",
             ["Entrada", "Saída"],
-            index=0 if registro["Tipo"] == "Entrada" else 1
+            index=0 if reg["Tipo"] == "Entrada" else 1
         )
 
         categoria = st.text_input(
             "Categoria",
-            registro["Categoria"]
+            reg["Categoria"]
         )
 
         col1, col2 = st.columns(2)
@@ -250,10 +237,7 @@ elif menu == "Editar / Excluir":
                 df["ID"] == id_escolhido
             ].index[0]
 
-            df.loc[idx, "Data"] = pd.Timestamp(
-                data
-            ).strftime("%Y-%m-%d")
-
+            df.loc[idx, "Data"] = data.strftime("%Y-%m-%d")
             df.loc[idx, "Descricao"] = descricao
             df.loc[idx, "Valor"] = valor
             df.loc[idx, "Tipo"] = tipo
@@ -262,7 +246,7 @@ elif menu == "Editar / Excluir":
             salvar_dados(df)
 
             st.success(
-                "Atualizado com sucesso!"
+                "Atualizado!"
             )
 
         if excluir:
@@ -274,12 +258,12 @@ elif menu == "Editar / Excluir":
             salvar_dados(df)
 
             st.success(
-                "Registro removido!"
+                "Removido!"
             )
 
-# ============================
+# ------------------------
 # DASHBOARD
-# ============================
+# ------------------------
 
 else:
 
@@ -295,24 +279,15 @@ else:
 
         st.stop()
 
-    data_min = df["Data"].min()
-    data_max = df["Data"].max()
+    data_inicio = st.date_input(
+        "Data Inicial",
+        value=df["Data"].min().date()
+    )
 
-    col1, col2 = st.columns(2)
-
-    with col1:
-
-        data_inicio = st.date_input(
-            "Data Inicial",
-            value=data_min.date()
-        )
-
-    with col2:
-
-        data_fim = st.date_input(
-            "Data Final",
-            value=data_max.date()
-        )
+    data_fim = st.date_input(
+        "Data Final",
+        value=df["Data"].max().date()
+    )
 
     df = df[
         (df["Data"] >= pd.Timestamp(data_inicio))
@@ -320,22 +295,25 @@ else:
         (df["Data"] <= pd.Timestamp(data_fim))
     ]
 
-    entradas = df[
-        df["Tipo"] == "Entrada"
-    ]["Valor"].sum()
+    entradas = (
+        df[df["Tipo"] == "Entrada"]["Valor"]
+        .sum()
+    )
 
-    saidas = df[
-        df["Tipo"] == "Saída"
-    ]["Valor"].sum()
+    saidas = (
+        df[df["Tipo"] == "Saída"]["Valor"]
+        .sum()
+    )
 
     saldo = entradas - saidas
 
-    media_gasto = df[
-        df["Tipo"] == "Saída"
-    ]["Valor"].mean()
+    media = (
+        df[df["Tipo"] == "Saída"]["Valor"]
+        .mean()
+    )
 
-    if pd.isna(media_gasto):
-        media_gasto = 0
+    if pd.isna(media):
+        media = 0
 
     c1, c2, c3, c4 = st.columns(4)
 
@@ -355,13 +333,11 @@ else:
     )
 
     c4.metric(
-        "Gasto Médio",
-        f"R$ {media_gasto:,.2f}"
+        "Média",
+        f"R$ {media:,.2f}"
     )
 
     # Evolução
-
-    st.subheader("📈 Evolução Mensal")
 
     df["Movimento"] = df.apply(
         lambda x:
@@ -381,5 +357,50 @@ else:
         .reset_index()
     )
 
+    st.subheader(
+        "📈 Evolução Mensal"
+    )
+
     fig = px.line(
-        evolucao
+        evolucao,
+        x="Mes",
+        y="Movimento",
+        markers=True
+    )
+
+    st.plotly_chart(
+        fig,
+        use_container_width=True
+    )
+
+    # Categorias
+
+    categorias = (
+        df[df["Tipo"] == "Saída"]
+        .groupby("Categoria")["Valor"]
+        .sum()
+        .reset_index()
+    )
+
+    if not categorias.empty:
+
+        st.subheader(
+            "🥧 Gastos por Categoria"
+        )
+
+        fig2 = px.pie(
+            categorias,
+            names="Categoria",
+            values="Valor"
+        )
+
+        st.plotly_chart(
+            fig2,
+            use_container_width=True
+        )
+
+    st.subheader(
+        "📋 Lançamentos"
+    )
+
+    st.dataframe
