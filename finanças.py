@@ -160,3 +160,32 @@ elif menu=="6. IA":
     df_all=get_df("f"); df_fat=get_df("fatura")
     saldo = df_all[df_all.tipo=="Entrada"].valor.sum() - df_all[df_all.tipo=="Saida"].valor.sum() - pd.to_numeric(df_fat.valor,errors='coerce').sum() if not df_all.empty else 0
     st.metric("Saldo Real",f"R$ {saldo:.2f}")
+        st.divider()
+    st.subheader("⬆️ Restaurar")
+    up = st.file_uploader("Se sumiu, suba o backup aqui", type=["xlsx"], key="up")
+    if up:
+        try:
+            xls = pd.ExcelFile(up)
+            st.write("Abas encontradas:", xls.sheet_names)
+            total = 0
+            for sheet_name in xls.sheet_names:
+                tabela = sheet_name.lower()
+                if "lanc" in tabela: tabela="f"
+                if "cart" in tabela: tabela="fatura"
+                if "fatu" in tabela: tabela="fatura"
+                if tabela not in ["f","fatura","metas"]: continue
+                
+                df_up = pd.read_excel(xls, sheet_name=sheet_name)
+                st.write(f"Restaurando {len(df_up)} linhas em {tabela}")
+                if df_up.empty: continue
+                cur.execute(f"DELETE FROM {tabela}")
+                conn.commit()
+                df_up.to_sql(tabela, conn, if_exists="append", index=False)
+                total += len(df_up)
+            
+            st.success(f"✅ {total} registros restaurados! Recarregando...")
+            import time; time.sleep(2)
+            st.rerun()
+        except Exception as e:
+            st.error(f"Erro ao restaurar: {e}")
+            st.exception(e)
