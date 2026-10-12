@@ -144,8 +144,7 @@ else:
     total_parcelas_periodo = 0
 
 saldo = entradas - saidas - total_parcelas_periodo
-    c1,c2,c3,c4=st.columns(4)
-    c1.metric("Entradas período",f"R$ {entradas:.2f}"); c2.metric("Saídas período",f"R$ {saidas:.2f}"); c3.metric("Cartão",f"R$ {total_cartao:.2f}"); c4.metric("SALDO",f"R$ {saldo:.2f}")
+c1,c2,c3,c4=st.columns(4)    c1.metric("Entradas período",f"R$ {entradas:.2f}"); c2.metric("Saídas período",f"R$ {saidas:.2f}"); c3.metric("Cartão",f"R$ {total_cartao:.2f}"); c4.metric("SALDO",f"R$ {saldo:.2f}")
     bloco_editar_deletar("f")
 elif menu=="2. Lançar":
     with st.form("fl"):
