@@ -113,8 +113,37 @@ def bloco_editar_deletar(tabela):
 if menu=="1. Dashboard":
     entradas=df_filtrado[df_filtrado.tipo=="Entrada"].valor.sum() if not df_filtrado.empty else 0
     saidas=df_filtrado[df_filtrado.tipo=="Saida"].valor.sum() if not df_filtrado.empty else 0
-    total_cartao=pd.to_numeric(get_df("fatura").valor, errors='coerce').sum()
-    saldo=entradas-saidas-total_cartao
+   # Compras feitas no cartão dentro do período selecionado
+df_cartao = get_df("fatura")
+
+if not df_cartao.empty:
+    df_cartao["data"] = pd.to_datetime(
+        df_cartao["data"], errors="coerce"
+    )
+
+    df_cartao["valor"] = pd.to_numeric(
+        df_cartao["valor"], errors="coerce"
+    ).fillna(0)
+
+    df_cartao["parcelas"] = pd.to_numeric(
+        df_cartao["parcelas"], errors="coerce"
+    ).fillna(1).clip(lower=1)
+
+    df_cartao_periodo = df_cartao[
+        (df_cartao["data"].dt.date >= ini) &
+        (df_cartao["data"].dt.date <= fim)
+    ].copy()
+
+    total_compras_periodo = df_cartao_periodo["valor"].sum()
+    total_parcelas_periodo = (
+        df_cartao_periodo["valor"] /
+        df_cartao_periodo["parcelas"]
+    ).sum()
+else:
+    total_compras_periodo = 0
+    total_parcelas_periodo = 0
+
+saldo = entradas - saidas - total_parcelas_periodo
     c1,c2,c3,c4=st.columns(4)
     c1.metric("Entradas período",f"R$ {entradas:.2f}"); c2.metric("Saídas período",f"R$ {saidas:.2f}"); c3.metric("Cartão",f"R$ {total_cartao:.2f}"); c4.metric("SALDO",f"R$ {saldo:.2f}")
     bloco_editar_deletar("f")
