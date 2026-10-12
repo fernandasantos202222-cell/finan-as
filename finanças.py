@@ -1,175 +1,806 @@
-import streamlit as st, pandas as pd, sqlite3
+
+import streamlit as st
+import pandas as pd
+import sqlite3
 from datetime import date, timedelta
 import io
 
+# =========================
+# BANCO DE DADOS
+# =========================
 conn = sqlite3.connect("fin.db", check_same_thread=False)
-conn.execute("CREATE TABLE IF NOT EXISTS f (id INTEGER PRIMARY KEY AUTOINCREMENT, data TEXT, item TEXT, valor REAL, tipo TEXT, classe TEXT)")
-conn.execute("CREATE TABLE IF NOT EXISTS fatura (id INTEGER PRIMARY KEY AUTOINCREMENT, data TEXT, item TEXT, valor REAL, parcelas INT, cartao TEXT)")
-conn.execute("CREATE TABLE IF NOT EXISTS metas (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT, valor REAL, prazo INT)")
 cur = conn.cursor()
 
-def get_df(t):
-    try: return pd.read_sql(f"SELECT * FROM {t} ORDER BY id DESC", conn)
-    except: return pd.DataFrame()
+conn.execute("""
+CREATE TABLE IF NOT EXISTS f (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    data TEXT,
+    item TEXT,
+    valor REAL,
+    tipo TEXT,
+    classe TEXT
+)
+""")
 
+conn.execute("""
+CREATE TABLE IF NOT EXISTS fatura (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    data TEXT,
+    item TEXT,
+    valor REAL,
+    parcelas INT,
+    cartao TEXT
+)
+""")
+
+conn.execute("""
+CREATE TABLE IF NOT EXISTS metas (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nome TEXT,
+    valor REAL,
+    prazo INT
+)
+""")
+
+conn.commit()
+
+
+def get_df(t):
+    try:
+        return pd.read_sql(
+            f"SELECT * FROM {t} ORDER BY id DESC", conn
+        )
+    except Exception:
+        return pd.DataFrame()
+
+
+# =========================
+# CONFIGURAÇÃO
+# =========================
 st.set_page_config(layout="wide")
 st.title("💰 Minhas Finanças")
 
+
+# =========================
+# MENU LATERAL E EXCEL
+# =========================
 with st.sidebar:
-    periodo = st.date_input("📅 Período do resumo", value=(date.today()-timedelta(days=30), date.today()))
-    if isinstance(periodo, tuple) and len(periodo)==2: ini,fim=periodo
-    else: ini=fim=periodo[0] if isinstance(periodo, tuple) else periodo
-    menu = st.radio("Menu", ["1. Dashboard","2. Lançar","3. Cartão","4. Metas","5. Investimentos","6. IA"])
+    periodo = st.date_input(
+        "📅 Período do resumo",
+        value=(date.today() - timedelta(days=30), date.today())
+    )
+
+    if isinstance(periodo, (tuple, list)):
+        if len(periodo) == 2:
+            ini, fim = periodo
+        else:
+            ini = fim = periodo[0]
+    else:
+        ini = fim = periodo
+
+    menu = st.radio(
+        "Menu",
+        [
+            "1. Dashboard",
+            "2. Lançar",
+            "3. Cartão",
+            "4. Metas",
+            "5. Investimentos",
+            "6. IA"
+        ]
+    )
 
     st.divider()
     st.subheader("💾 Backup / Excel")
 
-    df_all=get_df("f"); df_fat=get_df("fatura"); df_met=get_df("metas")
+    df_all = get_df("f")
+    df_fat = get_df("fatura")
+    df_met = get_df("metas")
 
     # BACKUP COMPLETO
-    buf1=io.BytesIO()
-    with pd.ExcelWriter(buf1, engine='openpyxl') as w:
+    buf1 = io.BytesIO()
+
+    with pd.ExcelWriter(buf1, engine="openpyxl") as w:
         df_all.to_excel(w, sheet_name="f", index=False)
         df_fat.to_excel(w, sheet_name="fatura", index=False)
         df_met.to_excel(w, sheet_name="metas", index=False)
-    st.download_button("⬇️ Baixar BACKUP", buf1.getvalue(), f"backup_{date.today()}.xlsx", use_container_width=True)
 
-    # EXCEL RESUMO POR PERIODO - AQUI ESTAVA O QUE VOCE QUERIA
+    st.download_button(
+        "⬇️ Baixar BACKUP",
+        buf1.getvalue(),
+        f"backup_{date.today()}.xlsx",
+        use_container_width=True
+    )
+
+    # EXCEL RESUMO POR PERÍODO
     if not df_all.empty:
-        df_all['data_dt'] = pd.to_datetime(df_all['data'], errors='coerce')
-        df_per = df_all[(df_all['data_dt'].dt.date>=ini) & (df_all['data_dt'].dt.date<=fim)].copy()
-        entradas = df_per[df_per.tipo=="Entrada"].valor.sum()
-        saidas = df_per[df_per.tipo=="Saida"].valor.sum()
-        por_classe = df_per[df_per.tipo=="Saida"].groupby("classe").valor.sum().reset_index()
-        resumo_df = pd.DataFrame([{"Item":"Total Entradas Periodo","Valor":entradas},{"Item":"Total Saidas Periodo","Valor":saidas},{"Item":"Saldo Periodo","Valor":entradas-saidas},{"Item":"Total Fatura Geral","Valor":pd.to_numeric(df_fat.valor, errors='coerce').sum()}])
-        buf2=io.BytesIO()
-        with pd.ExcelWriter(buf2, engine='openpyxl') as w:
-            resumo_df.to_excel(w, sheet_name=f"Resumo {ini} a {fim}", index=False)
-            por_classe.to_excel(w, sheet_name="Gastos por Classe", index=False)
-            df_per.drop(columns=['data_dt']).to_excel(w, sheet_name="Detalhe Periodo", index=False)
-            df_fat.to_excel(w, sheet_name="Cartao", index=False)
-        st.download_button(f"📊 Baixar Excel {ini} a {fim}", buf2.getvalue(), f"RESUMO_{ini}_a_{fim}.xlsx", type="primary", use_container_width=True)
+        df_excel = df_all.copy()
+        df_excel["data_dt"] = pd.to_datetime(
+            df_excel["data"], errors="coerce"
+        )
 
+        df_per = df_excel[
+            (df_excel["data_dt"].dt.date >= ini) &
+            (df_excel["data_dt"].dt.date <= fim)
+        ].copy()
+
+        entradas_excel = pd.to_numeric(
+            df_per.loc[df_per["tipo"] == "Entrada", "valor"],
+            errors="coerce"
+        ).sum()
+
+        saidas_excel = pd.to_numeric(
+            df_per.loc[df_per["tipo"] == "Saida", "valor"],
+            errors="coerce"
+        ).sum()
+
+        por_classe = (
+            df_per[df_per["tipo"] == "Saida"]
+            .groupby("classe")["valor"]
+            .sum()
+            .reset_index()
+        )
+
+        total_fatura_geral = pd.to_numeric(
+            df_fat["valor"], errors="coerce"
+        ).sum() if not df_fat.empty else 0
+
+        resumo_df = pd.DataFrame([
+            {
+                "Item": "Total Entradas Periodo",
+                "Valor": entradas_excel
+            },
+            {
+                "Item": "Total Saidas Periodo",
+                "Valor": saidas_excel
+            },
+            {
+                "Item": "Saldo Periodo",
+                "Valor": entradas_excel - saidas_excel
+            },
+            {
+                "Item": "Total Compras Cartao Geral",
+                "Valor": total_fatura_geral
+            }
+        ])
+
+        buf2 = io.BytesIO()
+
+        with pd.ExcelWriter(buf2, engine="openpyxl") as w:
+            resumo_df.to_excel(
+                w, sheet_name="Resumo", index=False
+            )
+            por_classe.to_excel(
+                w, sheet_name="Gastos por Classe", index=False
+            )
+            df_per.drop(
+                columns=["data_dt"]
+            ).to_excel(
+                w, sheet_name="Detalhe Periodo", index=False
+            )
+            df_fat.to_excel(
+                w, sheet_name="Cartao", index=False
+            )
+
+        st.download_button(
+            f"📊 Baixar Excel {ini} a {fim}",
+            buf2.getvalue(),
+            f"RESUMO_{ini}_a_{fim}.xlsx",
+            type="primary",
+            use_container_width=True
+        )
+
+    # RESTAURAÇÃO DO BACKUP
     st.divider()
     st.subheader("⬆️ Restaurar")
-    up = st.file_uploader("Suba o backup", type=["xlsx"], key="up_fix")
-    if up:
-        xls = pd.ExcelFile(up)
-        for aba in xls.sheet_names:
-            nome = aba.lower()
-            tabela = ""
-            if nome=="f" or "lanc" in nome: tabela="f"
-            if "fatura" in nome or "cart" in nome or nome=="fatura": tabela="fatura"
-            if "meta" in nome: tabela="metas"
-            if tabela=="": continue
-            df_up = pd.read_excel(xls, sheet_name=aba)
-            if df_up.empty: continue
-            cur.execute(f"DELETE FROM {tabela}")
-            conn.commit()
-            df_up.to_sql(tabela, conn, if_exists="append", index=False)
-        st.success("✅ Restaurado! Recarregando...")
-        st.rerun()
 
-# FILTRO
+    st.warning(
+        "A restauração substitui os registros das abas selecionadas. "
+        "Faça um backup antes de continuar."
+    )
+
+    up = st.file_uploader(
+        "Suba o backup completo",
+        type=["xlsx"],
+        key="up_fix"
+    )
+
+    confirmar_restauracao = st.checkbox(
+        "Confirmo que quero restaurar os dados deste arquivo."
+    )
+
+    if up and confirmar_restauracao:
+        if st.button("Restaurar backup agora"):
+            try:
+                xls = pd.ExcelFile(up)
+
+                # Aceita somente abas do backup completo.
+                tabelas_backup = {
+                    "f": "f",
+                    "fatura": "fatura",
+                    "metas": "metas"
+                }
+
+                restauradas = []
+
+                with conn:
+                    for aba in xls.sheet_names:
+                        nome = aba.strip().lower()
+
+                        if nome not in tabelas_backup:
+                            continue
+
+                        tabela = tabelas_backup[nome]
+                        df_up = pd.read_excel(
+                            xls, sheet_name=aba
+                        )
+
+                        colunas_esperadas = {
+                            "f": [
+                                "id", "data", "item",
+                                "valor", "tipo", "classe"
+                            ],
+                            "fatura": [
+                                "id", "data", "item",
+                                "valor", "parcelas", "cartao"
+                            ],
+                            "metas": [
+                                "id", "nome", "valor", "prazo"
+                            ]
+                        }
+
+                        if not all(
+                            col in df_up.columns
+                            for col in colunas_esperadas[tabela]
+                        ):
+                            raise ValueError(
+                                f"A aba '{aba}' não tem as colunas "
+                                "esperadas do backup."
+                            )
+
+                        # Remove somente os dados da tabela
+                        # que está sendo restaurada.
+                        conn.execute(f"DELETE FROM {tabela}")
+
+                        if not df_up.empty:
+                            df_up[colunas_esperadas[tabela]].to_sql(
+                                tabela,
+                                conn,
+                                if_exists="append",
+                                index=False
+                            )
+
+                        restauradas.append(tabela)
+
+                if restauradas:
+                    st.success(
+                        "Backup restaurado: "
+                        + ", ".join(restauradas)
+                    )
+                    st.rerun()
+                else:
+                    st.error(
+                        "Nenhuma aba válida de backup foi encontrada."
+                    )
+
+            except Exception as e:
+                st.error(f"Não foi possível restaurar: {e}")
+
+
+# =========================
+# FILTRO DOS LANÇAMENTOS
+# =========================
 df = get_df("f")
 df_filtrado = pd.DataFrame()
-if not df.empty:
-    df['data']=pd.to_datetime(df['data'], errors='coerce')
-    df=df.dropna(subset=['data'])
-    df_filtrado=df[(df['data'].dt.date>=ini) & (df['data'].dt.date<=fim)]
 
+if not df.empty:
+    df["data"] = pd.to_datetime(df["data"], errors="coerce")
+    df = df.dropna(subset=["data"])
+
+    df["valor"] = pd.to_numeric(
+        df["valor"], errors="coerce"
+    ).fillna(0)
+
+    df_filtrado = df[
+        (df["data"].dt.date >= ini) &
+        (df["data"].dt.date <= fim)
+    ].copy()
+
+
+# =========================
+# EDIÇÃO E EXCLUSÃO
+# =========================
 def bloco_editar_deletar(tabela):
     st.divider()
     st.subheader(f"✏️ Editar / Deletar - {tabela}")
-    df_tab=get_df(tabela)
-    if df_tab.empty: st.info("Sem dados"); return
+
+    df_tab = get_df(tabela)
+
+    if df_tab.empty:
+        st.info("Sem dados")
+        return
+
     st.dataframe(df_tab, use_container_width=True)
-    id_sel=st.number_input(f"ID {tabela}", min_value=int(df_tab.id.min()), max_value=int(df_tab.id.max()), key=f"id_{tabela}_{menu}")
-    row=df_tab[df_tab.id==id_sel]
-    if row.empty: return
-    r=row.iloc[0]
-    c1,c2,c3=st.columns(3)
-    if tabela=="f":
-        ni=c1.text_input("Item", value=r['item'], key=f"ei_{id_sel}_{menu}")
-        nv=c2.number_input("Valor", value=float(r['valor']), key=f"ev_{id_sel}_{menu}")
-        nt=c3.selectbox("Tipo", ["Saida","Entrada"], index=0 if r['tipo']=="Saida" else 1, key=f"et_{id_sel}_{menu}")
-        if st.button("Salvar", key=f"s_{tabela}_{id_sel}_{menu}"):
-            cur.execute("UPDATE f SET item=?, valor=?, tipo=? WHERE id=?",(ni,nv,nt,int(id_sel))); conn.commit(); st.rerun()
-    elif tabela=="fatura":
-        ni=c1.text_input("Item", value=r['item'], key=f"ei_f_{id_sel}_{menu}")
-        nv=c2.number_input("Valor", value=float(r['valor']), key=f"ev_f_{id_sel}_{menu}")
-        np=c3.number_input("Parcelas", value=int(r['parcelas']), min_value=1, max_value=12, key=f"ep_{id_sel}_{menu}")
-        if st.button("Salvar", key=f"s_{tabela}_{id_sel}_{menu}"):
-            cur.execute("UPDATE fatura SET item=?, valor=?, parcelas=? WHERE id=?",(ni,nv,int(np),int(id_sel))); conn.commit(); st.rerun()
-    elif tabela=="metas":
-        nn=c1.text_input("Nome", value=r['nome'], key=f"en_{id_sel}_{menu}")
-        nv=c2.number_input("Valor", value=float(r['valor']), key=f"ev_m_{id_sel}_{menu}")
-        np=c3.number_input("Prazo", value=int(r['prazo']), min_value=1, key=f"ep_m_{id_sel}_{menu}")
-        if st.button("Salvar", key=f"s_{tabela}_{id_sel}_{menu}"):
-            cur.execute("UPDATE metas SET nome=?, valor=?, prazo=? WHERE id=?",(nn,nv,int(np),int(id_sel))); conn.commit(); st.rerun()
-    if st.button(f"🗑️ Deletar ID {id_sel}", key=f"d_{tabela}_{id_sel}_{menu}"):
-        cur.execute(f"DELETE FROM {tabela} WHERE id=?",(int(id_sel),)); conn.commit(); st.rerun()
 
-if menu=="1. Dashboard":
-    entradas=df_filtrado[df_filtrado.tipo=="Entrada"].valor.sum() if not df_filtrado.empty else 0
-    saidas=df_filtrado[df_filtrado.tipo=="Saida"].valor.sum() if not df_filtrado.empty else 0
-   # Compras feitas no cartão dentro do período selecionado
-df_cartao = get_df("fatura")
-
-if not df_cartao.empty:
-    df_cartao["data"] = pd.to_datetime(
-        df_cartao["data"], errors="coerce"
+    id_sel = st.number_input(
+        f"ID {tabela}",
+        min_value=int(df_tab["id"].min()),
+        max_value=int(df_tab["id"].max()),
+        step=1,
+        key=f"id_{tabela}_{menu}"
     )
 
-    df_cartao["valor"] = pd.to_numeric(
-        df_cartao["valor"], errors="coerce"
-    ).fillna(0)
+    row = df_tab[df_tab["id"] == id_sel]
 
-    df_cartao["parcelas"] = pd.to_numeric(
-        df_cartao["parcelas"], errors="coerce"
-    ).fillna(1).clip(lower=1)
+    if row.empty:
+        return
 
-    df_cartao_periodo = df_cartao[
-        (df_cartao["data"].dt.date >= ini) &
-        (df_cartao["data"].dt.date <= fim)
-    ].copy()
+    r = row.iloc[0]
 
-    total_compras_periodo = df_cartao_periodo["valor"].sum()
-    total_parcelas_periodo = (
-        df_cartao_periodo["valor"] /
-        df_cartao_periodo["parcelas"]
-    ).sum()
-else:
-    total_compras_periodo = 0
-    total_parcelas_periodo = 0
+    c1, c2, c3 = st.columns(3)
 
-saldo = entradas - saidas - total_parcelas_periodo
-c1,c2,c3,c4=st.columns(4)
-c1.metric("Entradas período",f"R$ {entradas:.2f}")
-c2.metric("Saídas período",f"R$ {saidas:.2f}")
-c3.metric("Cartão",f"R$ {total_cartao:.2f}")
-saldo = entradas - saidas elif menu=="2. Lançar":
+    if tabela == "f":
+        ni = c1.text_input(
+            "Item", value=str(r["item"]),
+            key=f"ei_{id_sel}_{menu}"
+        )
+        nv = c2.number_input(
+            "Valor", value=float(r["valor"] or 0),
+            key=f"ev_{id_sel}_{menu}"
+        )
+        nt = c3.selectbox(
+            "Tipo",
+            ["Saida", "Entrada"],
+            index=0 if r["tipo"] == "Saida" else 1,
+            key=f"et_{id_sel}_{menu}"
+        )
+
+        if st.button(
+            "Salvar", key=f"s_{tabela}_{id_sel}_{menu}"
+        ):
+            cur.execute(
+                "UPDATE f SET item=?, valor=?, tipo=? WHERE id=?",
+                (ni, nv, nt, int(id_sel))
+            )
+            conn.commit()
+            st.success("Lançamento atualizado!")
+            st.rerun()
+
+    elif tabela == "fatura":
+        ni = c1.text_input(
+            "Item", value=str(r["item"]),
+            key=f"ei_f_{id_sel}_{menu}"
+        )
+        nv = c2.number_input(
+            "Valor total da compra",
+            value=float(r["valor"] or 0),
+            key=f"ev_f_{id_sel}_{menu}"
+        )
+        np = c3.number_input(
+            "Parcelas",
+            value=max(1, int(r["parcelas"] or 1)),
+            min_value=1,
+            max_value=12,
+            key=f"ep_{id_sel}_{menu}"
+        )
+
+        if st.button(
+            "Salvar", key=f"s_{tabela}_{id_sel}_{menu}"
+        ):
+            cur.execute(
+                "UPDATE fatura SET item=?, valor=?, parcelas=? WHERE id=?",
+                (ni, nv, int(np), int(id_sel))
+            )
+            conn.commit()
+            st.success("Compra atualizada!")
+            st.rerun()
+
+    elif tabela == "metas":
+        nn = c1.text_input(
+            "Nome", value=str(r["nome"]),
+            key=f"en_{id_sel}_{menu}"
+        )
+        nv = c2.number_input(
+            "Valor da meta",
+            value=float(r["valor"] or 0),
+            key=f"ev_m_{id_sel}_{menu}"
+        )
+        np = c3.number_input(
+            "Prazo em meses",
+            value=max(1, int(r["prazo"] or 1)),
+            min_value=1,
+            key=f"ep_m_{id_sel}_{menu}"
+        )
+
+        if st.button(
+            "Salvar", key=f"s_{tabela}_{id_sel}_{menu}"
+        ):
+            cur.execute(
+                "UPDATE metas SET nome=?, valor=?, prazo=? WHERE id=?",
+                (nn, nv, int(np), int(id_sel))
+            )
+            conn.commit()
+            st.success("Meta atualizada!")
+            st.rerun()
+
+    if st.button(
+        f"🗑️ Deletar ID {id_sel}",
+        key=f"d_{tabela}_{id_sel}_{menu}"
+    ):
+        cur.execute(
+            f"DELETE FROM {tabela} WHERE id=?",
+            (int(id_sel),)
+        )
+        conn.commit()
+        st.success("Registro excluído!")
+        st.rerun()
+
+
+# =========================
+# 1. DASHBOARD
+# =========================
+if menu == "1. Dashboard":
+
+    entradas = (
+        pd.to_numeric(
+            df_filtrado.loc[
+                df_filtrado["tipo"] == "Entrada", "valor"
+            ],
+            errors="coerce"
+        ).sum()
+        if not df_filtrado.empty else 0
+    )
+
+    saidas = (
+        pd.to_numeric(
+            df_filtrado.loc[
+                df_filtrado["tipo"] == "Saida", "valor"
+            ],
+            errors="coerce"
+        ).sum()
+        if not df_filtrado.empty else 0
+    )
+
+    # Compras no cartão feitas durante o período selecionado.
+    # O valor exibido é o total da compra, não uma fatura mensal.
+    df_cartao = get_df("fatura")
+
+    if not df_cartao.empty:
+        df_cartao["data"] = pd.to_datetime(
+            df_cartao["data"], errors="coerce"
+        )
+
+        df_cartao["valor"] = pd.to_numeric(
+            df_cartao["valor"], errors="coerce"
+        ).fillna(0)
+
+        df_cartao_periodo = df_cartao[
+            (df_cartao["data"].dt.date >= ini) &
+            (df_cartao["data"].dt.date <= fim)
+        ].copy()
+
+        total_compras_periodo = df_cartao_periodo["valor"].sum()
+    else:
+        total_compras_periodo = 0
+
+    # Saldo baseado apenas no dinheiro registrado como entrada e saída.
+    saldo = entradas - saidas
+
+    c1, c2, c3, c4 = st.columns(4)
+
+    c1.metric("Entradas período", f"R$ {entradas:.2f}")
+    c2.metric("Saídas período", f"R$ {saidas:.2f}")
+    c3.metric(
+        "Compras no cartão",
+        f"R$ {total_compras_periodo:.2f}"
+    )
+    c4.metric("Dinheiro que sobrou", f"R$ {saldo:.2f}")
+
+    st.caption(
+        "O saldo considera somente as entradas e saídas registradas "
+        "no período. Compras no cartão são exibidas separadamente "
+        "e não são descontadas novamente."
+    )
+
+    if not df_filtrado.empty:
+        st.subheader("📊 Gastos por classe")
+
+        despesas = df_filtrado[
+            df_filtrado["tipo"] == "Saida"
+        ]
+
+        if not despesas.empty:
+            gastos_classe = (
+                despesas.groupby("classe")["valor"]
+                .sum()
+                .sort_values(ascending=False)
+            )
+            st.bar_chart(gastos_classe)
+        else:
+            st.info("Não há saídas registradas neste período.")
+
+        st.subheader("📋 Lançamentos do período")
+        st.dataframe(
+            df_filtrado.drop(columns=["data"]).assign(
+                data=df_filtrado["data"].dt.strftime("%d/%m/%Y")
+            ),
+            use_container_width=True
+        )
+    else:
+        st.info("Nenhum lançamento neste período.")
+
+
+# =========================
+# 2. LANÇAR
+# =========================
+elif menu == "2. Lançar":
+
     with st.form("fl"):
-        d=st.date_input("Data",value=date.today()); t=st.selectbox("Tipo",["Saida","Entrada"]); i=st.text_input("Item"); cl=st.selectbox("Classe",["Alimentação","Transporte","Moradia","Lazer","Salário","Outros"]); v=st.number_input("Valor",0.0,step=10.0)
-        if st.form_submit_button("Salvar"): cur.execute("INSERT INTO f (data,item,valor,tipo,classe) VALUES (?,?,?,?,?)",(str(d),i,v,t,cl)); conn.commit(); st.success("Salvo!")
+        d = st.date_input("Data", value=date.today())
+
+        t = st.selectbox("Tipo", ["Saida", "Entrada"])
+        i = st.text_input("Item")
+
+        cl = st.selectbox(
+            "Classe",
+            [
+                "Alimentação",
+                "Transporte",
+                "Moradia",
+                "Lazer",
+                "Salário",
+                "Outros"
+            ]
+        )
+
+        v = st.number_input(
+            "Valor",
+            min_value=0.0,
+            step=10.0
+        )
+
+        if st.form_submit_button("Salvar"):
+            if not i.strip():
+                st.warning("Informe a descrição do lançamento.")
+            elif v <= 0:
+                st.warning("Informe um valor maior que zero.")
+            else:
+                cur.execute(
+                    """
+                    INSERT INTO f (data, item, valor, tipo, classe)
+                    VALUES (?, ?, ?, ?, ?)
+                    """,
+                    (str(d), i.strip(), v, t, cl)
+                )
+                conn.commit()
+                st.success("Lançamento salvo!")
+                st.rerun()
+
     bloco_editar_deletar("f")
-elif menu=="3. Cartão":
+
+
+# =========================
+# 3. CARTÃO
+# =========================
+elif menu == "3. Cartão":
+
+    st.caption(
+        "Informe o valor total da compra. As parcelas serão "
+        "registradas, mas o sistema ainda não calcula a fatura "
+        "mensal real por vencimento."
+    )
+
     with st.form("fc"):
-        dc=st.date_input("Data",value=date.today()); ic=st.text_input("O que comprou?"); vc=st.number_input("Valor",0.0,step=10.0); parc=st.number_input("Parcelas",1,12,1); cart=st.text_input("Cartão",value="Nubank")
-        if st.form_submit_button("Lançar"): cur.execute("INSERT INTO fatura (data,item,valor,parcelas,cartao) VALUES (?,?,?,?,?)",(str(dc),ic,vc,parc,cart)); conn.commit()
+        dc = st.date_input("Data da compra", value=date.today())
+        ic = st.text_input("O que comprou?")
+
+        vc = st.number_input(
+            "Valor total da compra",
+            min_value=0.0,
+            step=10.0
+        )
+
+        parc = st.number_input(
+            "Parcelas", min_value=1, max_value=12, value=1
+        )
+
+        cart = st.text_input("Cartão", value="Nubank")
+
+        if st.form_submit_button("Lançar"):
+            if not ic.strip():
+                st.warning("Informe o que foi comprado.")
+            elif vc <= 0:
+                st.warning("Informe um valor maior que zero.")
+            else:
+                cur.execute(
+                    """
+                    INSERT INTO fatura
+                    (data, item, valor, parcelas, cartao)
+                    VALUES (?, ?, ?, ?, ?)
+                    """,
+                    (str(dc), ic.strip(), vc, int(parc), cart.strip())
+                )
+                conn.commit()
+                st.success("Compra registrada!")
+                st.rerun()
+
     bloco_editar_deletar("fatura")
-elif menu=="4. Metas":
+
+
+# =========================
+# 4. METAS
+# =========================
+elif menu == "4. Metas":
+
     with st.form("fm"):
-        nome=st.text_input("O que comprar?",value="Sapato"); valor=st.number_input("Valor",0.0,step=10.0); prazo=st.number_input("Prazo meses",1,24,3)
-        if st.form_submit_button("Salvar Meta"): cur.execute("INSERT INTO metas (nome,valor,prazo) VALUES (?,?,?)",(nome,valor,prazo)); conn.commit()
+        nome = st.text_input("O que deseja comprar?", value="Sapato")
+
+        valor = st.number_input(
+            "Valor da meta",
+            min_value=0.0,
+            step=10.0
+        )
+
+        prazo = st.number_input(
+            "Prazo em meses",
+            min_value=1,
+            max_value=24,
+            value=3
+        )
+
+        if st.form_submit_button("Salvar Meta"):
+            if not nome.strip():
+                st.warning("Informe o nome da meta.")
+            elif valor <= 0:
+                st.warning("Informe um valor maior que zero.")
+            else:
+                cur.execute(
+                    """
+                    INSERT INTO metas (nome, valor, prazo)
+                    VALUES (?, ?, ?)
+                    """,
+                    (nome.strip(), valor, int(prazo))
+                )
+                conn.commit()
+                st.success("Meta salva!")
+                st.rerun()
+
+    df_metas = get_df("metas")
+
+    if not df_metas.empty:
+        st.subheader("🎯 Suas metas")
+        st.dataframe(df_metas, use_container_width=True)
+
+        df_metas["valor"] = pd.to_numeric(
+            df_metas["valor"], errors="coerce"
+        ).fillna(0)
+
+        df_metas["prazo"] = pd.to_numeric(
+            df_metas["prazo"], errors="coerce"
+        ).clip(lower=1)
+
+        df_metas["Guardar por mês"] = (
+            df_metas["valor"] / df_metas["prazo"]
+        )
+
+        st.subheader("💰 Quanto guardar por mês")
+        st.dataframe(
+            df_metas[["nome", "valor", "prazo", "Guardar por mês"]],
+            use_container_width=True
+        )
+
     bloco_editar_deletar("metas")
-elif menu=="5. Investimentos":
-    economia=st.slider("Guardar por mês",20,1000,100,step=20)
-    s=0; hist=[]
-    for mes in range(1,25):
-        s=(s+economia)*1.01; hist.append({"Mês":mes,"Gaveta":economia*mes,"Investindo":round(s,2)})
-    st.line_chart(pd.DataFrame(hist), x="Mês", y=["Gaveta","Investindo"])
-elif menu=="6. IA":
-    df_all=get_df("f"); df_fat=get_df("fatura")
-    saldo = df_all[df_all.tipo=="Entrada"].valor.sum() - df_all[df_all.tipo=="Saida"].valor.sum() - pd.to_numeric(df_fat.valor,errors='coerce').sum() if not df_all.empty else 0
-    st.metric("Saldo Real",f"R$ {saldo:.2f}")
+
+
+# =========================
+# 5. INVESTIMENTOS
+# =========================
+elif menu == "5. Investimentos":
+
+    st.subheader("📈 Simulação de economia")
+
+    economia = st.slider(
+        "Guardar por mês (R$)",
+        min_value=20,
+        max_value=1000,
+        value=100,
+        step=20
+    )
+
+    taxa = st.number_input(
+        "Taxa mensal hipotética (%)",
+        min_value=0.0,
+        max_value=5.0,
+        value=1.0,
+        step=0.1
+    )
+
+    st.caption(
+        "Simulação ilustrativa. A taxa informada não representa "
+        "uma promessa de rentabilidade nem uma recomendação "
+        "de investimento."
+    )
+
+    saldo_investido = 0
+    historico = []
+
+    for mes in range(1, 25):
+        saldo_investido = (
+            saldo_investido + economia
+        ) * (1 + taxa / 100)
+
+        historico.append({
+            "Mês": mes,
+            "Guardando sem rendimento": economia * mes,
+            "Simulação com rendimento": round(saldo_investido, 2)
+        })
+
+    df_investimentos = pd.DataFrame(historico)
+
+    st.line_chart(
+        df_investimentos.set_index("Mês")
+    )
+
+    st.metric(
+        "Total guardado em 24 meses sem rendimento",
+        f"R$ {economia * 24:.2f}"
+    )
+
+    st.metric(
+        "Resultado simulado em 24 meses",
+        f"R$ {saldo_investido:.2f}"
+    )
+
+
+# =========================
+# 6. IA / RESUMO FINANCEIRO
+# =========================
+elif menu == "6. IA":
+
+    df_ia = get_df("f")
+
+    if df_ia.empty:
+        entradas_geral = 0
+        saidas_geral = 0
+    else:
+        df_ia["valor"] = pd.to_numeric(
+            df_ia["valor"], errors="coerce"
+        ).fillna(0)
+
+        entradas_geral = df_ia.loc[
+            df_ia["tipo"] == "Entrada", "valor"
+        ].sum()
+
+        saidas_geral = df_ia.loc[
+            df_ia["tipo"] == "Saida", "valor"
+        ].sum()
+
+    saldo_geral = entradas_geral - saidas_geral
+
+    st.subheader("🧠 Resumo financeiro")
+
+    c1, c2, c3 = st.columns(3)
+
+    c1.metric("Entradas registradas", f"R$ {entradas_geral:.2f}")
+    c2.metric("Saídas registradas", f"R$ {saidas_geral:.2f}")
+    c3.metric("Saldo dos lançamentos", f"R$ {saldo_geral:.2f}")
+
+    if saldo_geral > 0:
+        st.success(
+            "Suas entradas registradas são maiores que suas saídas. "
+            "Confira também as contas futuras e os compromissos do cartão."
+        )
+    elif saldo_geral < 0:
+        st.warning(
+            "Suas saídas registradas superam suas entradas. "
+            "Revise os gastos e as despesas previstas."
+        )
+    else:
+        st.info(
+            "Suas entradas e saídas registradas estão equilibradas."
+        )
+
+    st.caption(
+        "Este resumo usa todos os lançamentos cadastrados. "
+        "Não representa necessariamente o saldo bancário atual."
+    )
