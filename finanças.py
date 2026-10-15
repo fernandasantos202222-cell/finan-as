@@ -682,7 +682,7 @@ elif menu == "3. Cartão":
                 conn.commit()
                 st.success("Compra registrada!")
                 st.rerun()
-
+    bloco_editar_deletar("fatura")
 
 # =========================
 # 4. METAS
