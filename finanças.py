@@ -643,21 +643,19 @@ elif menu == "3. Cartão":
     )
 
   
-with st.form("fc"):
-    dc = st.date_input("Data da compra", value=date.today())
-    dp = st.date_input("Data da primeira cobrança", value=date.today())
-    ic = st.text_input("O que comprou?")
-    vc = st.number_input(
-        "Valor total da compra",
-        min_value=0.0,
-        step=10.0
 
+    with st.form("fc"):
+        dc = st.date_input("Data da compra", value=date.today())
+        dp = st.date_input("Data da primeira cobrança", value=date.today())
+        ic = st.text_input("O que comprou?")
+        vc = st.number_input(
+            "Valor total da compra",
+            min_value=0.0,
+            step=10.0
         )
-
         parc = st.number_input(
             "Parcelas", min_value=1, max_value=12, value=1
         )
-
         cart = st.text_input("Cartão", value="Nubank")
 
         if st.form_submit_button("Lançar"):
@@ -669,16 +667,21 @@ with st.form("fc"):
                 cur.execute(
                     """
                     INSERT INTO fatura
-                    (data, item, valor, parcelas, cartao)
-                    VALUES (?, ?, ?, ?, ?)
+                    (data, item, valor, parcelas, cartao, primeira_parcela)
+                    VALUES (?, ?, ?, ?, ?, ?)
                     """,
-                    (str(dc), ic.strip(), vc, int(parc), cart.strip())
+                    (
+                        str(dc),
+                        ic.strip(),
+                        vc,
+                        int(parc),
+                        cart.strip(),
+                        str(dp)
+                    )
                 )
                 conn.commit()
                 st.success("Compra registrada!")
                 st.rerun()
-
-    bloco_editar_deletar("fatura")
 
 
 # =========================
