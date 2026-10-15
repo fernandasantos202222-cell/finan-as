@@ -434,6 +434,18 @@ def bloco_editar_deletar(tabela):
             min_value=1,
             max_value=12,
             key=f"ep_{id_sel}_{menu}"
+       
+        data_primeira = st.date_input(
+            "Data da primeira cobrança",
+            value=(
+                date.fromisoformat(str(r["primeira_parcela"])[:10])
+                if pd.notna(r.get("primeira_parcela"))
+                and str(r.get("primeira_parcela", "")).strip()
+                else date.today()
+            ),
+            key=f"edp_f_{id_sel}_{menu}"
+        )
+     
         )
 
         if st.button(
