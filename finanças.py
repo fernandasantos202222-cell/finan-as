@@ -92,6 +92,11 @@ def get_df(t):
         st.error(f"Erro ao consultar o banco de dados: {e}")
         return pd.DataFrame()
 
+    db_conn.execute(text("""
+        ALTER TABLE fatura
+        ADD COLUMN IF NOT EXISTS primeira_parcela TEXT
+    """))
+
 
 # =========================
 # CONFIGURAÇÃO
