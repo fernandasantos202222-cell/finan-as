@@ -428,13 +428,15 @@ def bloco_editar_deletar(tabela):
             value=float(r["valor"] or 0),
             key=f"ev_f_{id_sel}_{menu}"
         )
+        
         np = c3.number_input(
             "Parcelas",
             value=max(1, int(r["parcelas"] or 1)),
             min_value=1,
             max_value=12,
             key=f"ep_{id_sel}_{menu}"
-       
+        )
+
         data_primeira = st.date_input(
             "Data da primeira cobrança",
             value=(
