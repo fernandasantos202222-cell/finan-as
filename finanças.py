@@ -642,14 +642,16 @@ elif menu == "3. Cartão":
         "mensal real por vencimento."
     )
 
-    with st.form("fc"):
-        dc = st.date_input("Data da compra", value=date.today())
-        ic = st.text_input("O que comprou?")
-dp = st.date_input("Data da primeira cobrança", value=date.today())
-        vc = st.number_input(
-            "Valor total da compra",
-            min_value=0.0,
-            step=10.0
+  
+with st.form("fc"):
+    dc = st.date_input("Data da compra", value=date.today())
+    dp = st.date_input("Data da primeira cobrança", value=date.today())
+    ic = st.text_input("O que comprou?")
+    vc = st.number_input(
+        "Valor total da compra",
+        min_value=0.0,
+        step=10.0
+
         )
 
         parc = st.number_input(
