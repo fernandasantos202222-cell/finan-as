@@ -73,6 +73,9 @@ with engine.begin() as db_conn:
             data TEXT, item TEXT, valor DOUBLE PRECISION,
             parcelas INTEGER, cartao TEXT
         )
+        db_conn.execute(text("""
+        ALTER TABLE fatura
+        ADD COLUMN IF NOT EXISTS primeira_parcela TEXT
     """))
     db_conn.execute(text("""
         CREATE TABLE IF NOT EXISTS metas (
@@ -92,10 +95,7 @@ def get_df(t):
         st.error(f"Erro ao consultar o banco de dados: {e}")
         return pd.DataFrame()
 
-    db_conn.execute(text("""
-        ALTER TABLE fatura
-        ADD COLUMN IF NOT EXISTS primeira_parcela TEXT
-    """))
+   
 
 
 # =========================
