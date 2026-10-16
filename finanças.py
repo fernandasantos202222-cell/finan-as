@@ -92,6 +92,77 @@ with engine.begin() as db_conn:
 
 
 def get_df(t):
+
+def calcular_parcelas(df_cartao):
+    colunas = [
+        "Data prevista", "Compra", "Cartão",
+        "Parcela", "Valor previsto", "Observação"
+    ]
+
+    if df_cartao.empty:
+        return pd.DataFrame(columns=colunas)
+
+    agenda = []
+
+    for _, compra in df_cartao.iterrows():
+        valor = pd.to_numeric(
+            compra.get("valor"), errors="coerce"
+        )
+        quantidade = pd.to_numeric(
+            compra.get("parcelas"), errors="coerce"
+        )
+
+        if pd.isna(valor) or pd.isna(quantidade):
+            continue
+
+        quantidade = max(1, int(quantidade))
+        total_centavos = int(round(float(valor) * 100))
+
+        # Distribui os centavos para evitar diferenças no total.
+        base = total_centavos // quantidade
+        resto = total_centavos % quantidade
+
+        primeira = pd.to_datetime(
+            compra.get("primeira_parcela"), errors="coerce"
+        )
+        observacao = "Data cadastrada"
+
+        # Compras antigas sem data cadastrada:
+        # usa a data da compra como estimativa.
+        if pd.isna(primeira):
+            primeira = pd.to_datetime(
+                compra.get("data"), errors="coerce"
+            )
+            observacao = "Estimativa pela data da compra"
+
+        if pd.isna(primeira):
+            continue
+
+        for i in range(quantidade):
+            data_prevista = (
+                primeira + pd.DateOffset(months=i)
+            )
+
+            centavos = base + (1 if i < resto else 0)
+
+            agenda.append({
+                "Data prevista": data_prevista.date(),
+                "Compra": str(compra.get("item", "")),
+                "Cartão": str(compra.get("cartao", "")),
+                "Parcela": f"{i + 1}/{quantidade}",
+                "Valor previsto": centavos / 100,
+                "Observação": observacao
+            })
+
+    resultado = pd.DataFrame(agenda, columns=colunas)
+
+    if not resultado.empty:
+        resultado = resultado.sort_values(
+            "Data prevista"
+        ).reset_index(drop=True)
+
+    return resultado
+
     # Só permite nomes de tabela definidos pelo próprio sistema.
     if t not in {"f", "fatura", "metas"}:
         return pd.DataFrame()
