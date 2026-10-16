@@ -418,6 +418,7 @@ def bloco_editar_deletar(tabela):
             st.success("Lançamento atualizado!")
             st.rerun()
 
+    
     elif tabela == "fatura":
         ni = c1.text_input(
             "Item", value=str(r["item"]),
@@ -428,7 +429,6 @@ def bloco_editar_deletar(tabela):
             value=float(r["valor"] or 0),
             key=f"ev_f_{id_sel}_{menu}"
         )
-        
         np = c3.number_input(
             "Parcelas",
             value=max(1, int(r["parcelas"] or 1)),
@@ -436,7 +436,6 @@ def bloco_editar_deletar(tabela):
             max_value=12,
             key=f"ep_{id_sel}_{menu}"
         )
-
         data_primeira = st.date_input(
             "Data da primeira cobrança",
             value=(
@@ -447,9 +446,7 @@ def bloco_editar_deletar(tabela):
             ),
             key=f"edp_f_{id_sel}_{menu}"
         )
-     
-        )
-
+        
         if st.button(
             "Salvar", key=f"s_{tabela}_{id_sel}_{menu}"
         ):
