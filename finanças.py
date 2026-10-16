@@ -451,6 +451,7 @@ def bloco_editar_deletar(tabela):
             "Salvar", key=f"s_{tabela}_{id_sel}_{menu}"
         ):
             
+        
             cur.execute(
                 """
                 UPDATE fatura
@@ -463,8 +464,12 @@ def bloco_editar_deletar(tabela):
                     int(np),
                     str(data_primeira),
                     int(id_sel)
+                )
             )
             conn.commit()
+            st.success("Compra atualizada!")
+            st.rerun()
+
             st.success("Compra atualizada!")
             st.rerun()
 
