@@ -450,13 +450,24 @@ def bloco_editar_deletar(tabela):
         if st.button(
             "Salvar", key=f"s_{tabela}_{id_sel}_{menu}"
         ):
+            
             cur.execute(
-                "UPDATE fatura SET item=?, valor=?, parcelas=? WHERE id=?",
-                (ni, nv, int(np), int(id_sel))
+                """
+                UPDATE fatura
+                SET item=?, valor=?, parcelas=?, primeira_parcela=?
+                WHERE id=?
+                """,
+                (
+                    ni,
+                    nv,
+                    int(np),
+                    str(data_primeira),
+                    int(id_sel)
             )
             conn.commit()
             st.success("Compra atualizada!")
             st.rerun()
+
 
     elif tabela == "metas":
         nn = c1.text_input(
